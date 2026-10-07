@@ -35,6 +35,10 @@
   #define MULTI_RELAY_INVERTS false
 #endif
 
+#ifndef MULTI_RELAY_BOOTONS
+  #define MULTI_RELAY_BOOTONS false
+#endif
+
 #define WLED_DEBOUNCE_THRESHOLD 50 //only consider button input of at least 50ms as valid (debouncing)
 
 #define ON  true
@@ -68,6 +72,7 @@ typedef struct relay_t {
     bool invert   : 1;  // does On mean 1 or 0
     bool state    : 1;  // 1 relay is On, 0 relay is Off
     bool external : 1;  // is the relay externally controlled
+    bool bootOn   : 1;  // externally controlled relay is switched On at boot
     int8_t button : 4;  // which button triggers relay
   };
   uint16_t delay;       // amount of ms to wait after it is activated
@@ -97,6 +102,7 @@ class MultiRelay : public Usermod {
     static const char _delay_str[];
     static const char _activeHigh[];
     static const char _external[];
+    static const char _bootOn[];
     static const char _button[];
     static const char _broadcast[];
     static const char _HAautodiscovery[];
@@ -370,6 +376,7 @@ MultiRelay::MultiRelay()
   const int8_t relayDelays[] = {MULTI_RELAY_DELAYS};
   const bool relayExternals[] = {MULTI_RELAY_EXTERNALS};
   const bool relayInverts[] = {MULTI_RELAY_INVERTS};
+  const bool relayBootOns[] = {MULTI_RELAY_BOOTONS};
 
   for (size_t i=0; i<MULTI_RELAY_MAX_RELAYS; i++) {
     _relay[i].pin      = i < COUNT_OF(defPins) ? defPins[i] : -1;
@@ -378,6 +385,7 @@ MultiRelay::MultiRelay()
     _relay[i].active   = false;
     _relay[i].state    = false;
     _relay[i].external = i < COUNT_OF(relayExternals) ? relayExternals[i] : false;
+    _relay[i].bootOn   = i < COUNT_OF(relayBootOns) ? relayBootOns[i] : false;
     _relay[i].button   = -1;
   }
 }
@@ -512,10 +520,12 @@ void MultiRelay::setup() {
     if (usePcf8574 && _relay[i].pin >= 100) {
       uint8_t pin = _relay[i].pin - 100;
       if (!_relay[i].external) _relay[i].state = !offMode;
+      else if (!initDone) _relay[i].state = _relay[i].bootOn; // config reload keeps current state
       state |= (uint8_t)(_relay[i].invert ? !_relay[i].state : _relay[i].state) << pin;
     } else if (_relay[i].pin<100 && _relay[i].pin>=0) {
       if (PinManager::allocatePin(_relay[i].pin,true, PinOwner::UM_MultiRelay)) {
         if (!_relay[i].external) _relay[i].state = !offMode;
+        else if (!initDone) _relay[i].state = _relay[i].bootOn; // config reload keeps current state
         switchRelay(i, _relay[i].state);
         _relay[i].active = false;
       } else {
@@ -757,6 +767,7 @@ void MultiRelay::addToConfig(JsonObject &root) {
     relay[FPSTR(_activeHigh)] = _relay[i].invert;
     relay[FPSTR(_delay_str)]  = _relay[i].delay;
     relay[FPSTR(_external)]   = _relay[i].external;
+    relay[FPSTR(_bootOn)]     = _relay[i].bootOn;
     relay[FPSTR(_button)]     = _relay[i].button;
   }
   DEBUG_PRINTLN(F("MultiRelay config saved."));
@@ -802,6 +813,7 @@ bool MultiRelay::readFromConfig(JsonObject &root) {
     _relay[i].pin      = top[parName]["pin"] | _relay[i].pin;
     _relay[i].invert   = top[parName][FPSTR(_activeHigh)] | _relay[i].invert;
     _relay[i].external = top[parName][FPSTR(_external)]   | _relay[i].external;
+    _relay[i].bootOn   = top[parName][FPSTR(_bootOn)]     | _relay[i].bootOn;
     _relay[i].delay    = top[parName][FPSTR(_delay_str)]  | _relay[i].delay;
     _relay[i].button   = top[parName][FPSTR(_button)]     | _relay[i].button;
     _relay[i].delay    = min(600,max(0,abs((int)_relay[i].delay))); // bounds checking max 10min
@@ -822,7 +834,7 @@ bool MultiRelay::readFromConfig(JsonObject &root) {
     DEBUG_PRINTLN(F(" config (re)loaded."));
   }
   // use "return !top["newestParameter"].isNull();" when updating Usermod with new features
-  return !top[FPSTR(_pcf8574)].isNull();
+  return !top[F("relay-0")][FPSTR(_bootOn)].isNull();
 }
 
 // strings to reduce flash memory usage (used more than twice)
@@ -832,6 +844,7 @@ const char MultiRelay::_relay_str[]       PROGMEM = "relay";
 const char MultiRelay::_delay_str[]       PROGMEM = "delay-s";
 const char MultiRelay::_activeHigh[]      PROGMEM = "active-high";
 const char MultiRelay::_external[]        PROGMEM = "external";
+const char MultiRelay::_bootOn[]          PROGMEM = "boot-on";
 const char MultiRelay::_button[]          PROGMEM = "button";
 const char MultiRelay::_broadcast[]       PROGMEM = "broadcast-sec";
 const char MultiRelay::_HAautodiscovery[] PROGMEM = "HA-autodiscovery";

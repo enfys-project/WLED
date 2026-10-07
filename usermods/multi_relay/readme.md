@@ -60,6 +60,7 @@ The following definitions should be a list of values (maximum number of entries 
 #define MULTI_RELAY_DELAYS 0,0
 #define MULTI_RELAY_EXTERNALS false,true
 #define MULTI_RELAY_INVERTS false,false
+#define MULTI_RELAY_BOOTONS false,false
 ```
 These can be set via your `platformio_override.ini` file or as `#define` in your `my_config.h` (remember to set `WLED_USE_MY_CONFIG` in your `platformio_override.ini`)
 
@@ -76,6 +77,7 @@ Usermod can be configured via the Usermods settings page.
 * `delay-s` - delay in seconds after on/off command is received
 * `active-high` - assign high/low activation of relay (can be used to reverse relay states)
 * `external` - if enabled, WLED does not control relay, it can only be triggered by an external command (MQTT, HTTP, JSON or button)
+* `boot-on` - if enabled, an `external` relay is switched On at boot instead of Off (can be configured at compile time `-D MULTI_RELAY_BOOTONS=true,...`)
 * `button` - button (from LED Settings) that controls this relay
 
 If there is no MultiRelay section, just save current configuration and re-open Usermods settings page. 
